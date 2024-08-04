@@ -4,20 +4,11 @@ from nsepython import nse_eq, nsefetch
 from pprint import pprint
 from pytz import timezone 
 import concurrent.futures
-# from twilio.rest import Client
 from vonage import Client, Sms
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
-
-# account_sid = os.getenv('ACCOUNT_SID')
-# auth_token = os.getenv('AUTH_TOKEN')
-# to_phone_number = os.getenv('TO_PHONE_NUMBER')
-# from_phone_number = os.getenv('FROM_PHONE_NUMBER')
-
-# client = Client(account_sid, auth_token)
-
 
 api_key = os.getenv('VONAGE_API_KEY')
 api_secret = os.getenv('VONAGE_API_SECRET')
@@ -26,16 +17,6 @@ from_phone_number = os.getenv('FROM_PHONE_NUMBER')
 
 client = Client(key=api_key, secret=api_secret)
 sms = Sms(client)
-
-
-# def send_sms(recipient_phone_number,body):
-#     message = client.messages.create(
-#         from_=from_phone_number,
-#         body=body,
-#         to=recipient_phone_number
-#     )
-#     if message["messages"][0]["status"] != "0":
-#         raise Exception("SMS failed to send")
 
 def send_sms(recipient_phone_number, body):
     response = sms.send_message({
@@ -46,10 +27,8 @@ def send_sms(recipient_phone_number, body):
     if response["messages"][0]["status"] != "0":
         raise Exception("SMS failed to send")
 
-
-
-
 def fetch_stock_data(symbol):
+    print(f"Fetching data for {symbol}")
     try:
         url = f"https://www.nseindia.com/api/chart-databyindex?index={symbol}EQN"
         response = nsefetch(url)
@@ -58,7 +37,6 @@ def fetch_stock_data(symbol):
         df.rename(columns={0: 'timestamp', 1: 'price'}, inplace=True)
         df['datetime'] = pd.to_datetime(df['timestamp'], unit='ms')
         df.set_index('datetime', inplace=True)
-        # pprint(df)
         open_price = df.iloc[0]['price']
         hourly_data = df.resample('1h').agg({'price': 'ohlc'})
         hourly_data.columns = hourly_data.columns.droplevel()
@@ -67,7 +45,6 @@ def fetch_stock_data(symbol):
 
         response = nse_eq(symbol)
         name = symbol
-        # open_price = hourly_data.iloc[0]['o']
         low_price = min(hourly_data['l'])
         high_price = max(hourly_data['h'])
         close_price = hourly_data.iloc[6]['c']
@@ -130,10 +107,10 @@ for symbol, info_list in pattern_dict.items():
     pattern_type = info_list[-1]
     message_lines.append(f"{name}: {pattern_type} candle")
 
-# pprint(pattern_dict)
-
 if len(pattern_dict) > 0:
     message = "\n".join(message_lines)
+    print(message)  # Add this line to print the message before sending
     send_sms(to_phone_number, message)
     print("done")
-
+else:
+    print("No patterns detected")
