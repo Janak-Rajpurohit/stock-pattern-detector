@@ -4,28 +4,48 @@ from nsepython import nse_eq, nsefetch
 from pprint import pprint
 from pytz import timezone 
 import concurrent.futures
-from twilio.rest import Client
+# from twilio.rest import Client
+from vonage import Client, Sms
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-account_sid = os.getenv('ACCOUNT_SID')
-auth_token = os.getenv('AUTH_TOKEN')
+# account_sid = os.getenv('ACCOUNT_SID')
+# auth_token = os.getenv('AUTH_TOKEN')
+# to_phone_number = os.getenv('TO_PHONE_NUMBER')
+# from_phone_number = os.getenv('FROM_PHONE_NUMBER')
+
+# client = Client(account_sid, auth_token)
+
+
+api_key = os.getenv('VONAGE_API_KEY')
+api_secret = os.getenv('VONAGE_API_SECRET')
 to_phone_number = os.getenv('TO_PHONE_NUMBER')
 from_phone_number = os.getenv('FROM_PHONE_NUMBER')
 
-# account_sid = 'AC2eeae76a443e2e16d83b3b180498bde0'
-# auth_token = 'f3e7fec75747e095617827b0c81f17b3'
-client = Client(account_sid, auth_token)
+client = Client(key=api_key, secret=api_secret)
+sms = Sms(client)
 
-def send_sms(recipient_phone_number,body):
-    message = client.messages.create(
-        from_=from_phone_number,
-        body=body,
-        to=recipient_phone_number
-    )
-   
+
+# def send_sms(recipient_phone_number,body):
+#     message = client.messages.create(
+#         from_=from_phone_number,
+#         body=body,
+#         to=recipient_phone_number
+#     )
+#     if message["messages"][0]["status"] != "0":
+#         raise Exception("SMS failed to send")
+
+def send_sms(recipient_phone_number, body):
+    response = sms.send_message({
+        "from": from_phone_number,
+        "to": recipient_phone_number,
+        "text": body,
+    })
+    if response["messages"][0]["status"] != "0":
+        raise Exception("SMS failed to send")
+
 
 
 
@@ -112,4 +132,5 @@ for symbol, info_list in pattern_dict.items():
 if len(pattern_dict) > 0:
     message = "\n".join(message_lines)
     send_sms(to_phone_number, message)
+    print("done")
 
