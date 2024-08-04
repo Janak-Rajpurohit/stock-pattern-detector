@@ -58,6 +58,8 @@ def fetch_stock_data(symbol):
         df.rename(columns={0: 'timestamp', 1: 'price'}, inplace=True)
         df['datetime'] = pd.to_datetime(df['timestamp'], unit='ms')
         df.set_index('datetime', inplace=True)
+        # pprint(df)
+        open_price = df.iloc[0]['price']
         hourly_data = df.resample('1h').agg({'price': 'ohlc'})
         hourly_data.columns = hourly_data.columns.droplevel()
         hourly_data.reset_index(inplace=True)
@@ -65,7 +67,7 @@ def fetch_stock_data(symbol):
 
         response = nse_eq(symbol)
         name = symbol
-        open_price = hourly_data.iloc[0]['o']
+        # open_price = hourly_data.iloc[0]['o']
         low_price = min(hourly_data['l'])
         high_price = max(hourly_data['h'])
         close_price = hourly_data.iloc[6]['c']
@@ -128,6 +130,7 @@ for symbol, info_list in pattern_dict.items():
     pattern_type = info_list[-1]
     message_lines.append(f"{name}: {pattern_type} candle")
 
+# pprint(pattern_dict)
 
 if len(pattern_dict) > 0:
     message = "\n".join(message_lines)
