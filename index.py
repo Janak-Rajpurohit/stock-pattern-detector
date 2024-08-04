@@ -1,13 +1,16 @@
 import pandas as pd
 import numpy as np
 from nsepython import nse_eq, nsefetch
-from pytz import timezone
+from pprint import pprint
+from pytz import timezone 
 import concurrent.futures
+# from twilio.rest import Client
 from vonage import Client, Sms
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
+
 
 api_key = os.getenv('VONAGE_API_KEY')
 api_secret = os.getenv('VONAGE_API_SECRET')
@@ -26,49 +29,33 @@ def send_sms(recipient_phone_number, body):
     if response["messages"][0]["status"] != "0":
         raise Exception("SMS failed to send")
 
+
 def fetch_stock_data(symbol):
     try:
         url = f"https://www.nseindia.com/api/chart-databyindex?index={symbol}EQN"
         response = nsefetch(url)
-        
-        if 'grapthData' not in response:
-            print(f"No 'grapthData' found for {symbol}")
-            return None
-        
         data = response['grapthData']
         df = pd.DataFrame(data)
         df.rename(columns={0: 'timestamp', 1: 'price'}, inplace=True)
-        
-        # Convert timestamp from milliseconds to datetime and localize to 'Asia/Kolkata' timezone
-        df['datetime'] = pd.to_datetime(df['timestamp'], unit='ms').dt.tz_localize('UTC').dt.tz_convert('Asia/Kolkata')
+        df['datetime'] = pd.to_datetime(df['timestamp'], unit='ms')
         df.set_index('datetime', inplace=True)
-        
-        # Filter data between market open (9:15 AM) and close (3:00 PM)
-        market_open = df.between_time('09:15', '15:00')
-        
-        # Debug output
-        print(f"{symbol} - Data after conversion and filtering:\n{market_open.head()}\n")
-        
-        # Resample data to hourly intervals within market hours
-        hourly_data = market_open.resample('1H').agg({'price': 'ohlc'})
+        # pprint(df)
+        open_price = df.iloc[0]['price']
+        hourly_data = df.resample('1h').agg({'price': 'ohlc'})
         hourly_data.columns = hourly_data.columns.droplevel()
         hourly_data.reset_index(inplace=True)
         hourly_data.rename(columns={"open": "o", "close": "c", "high": "h", "low": "l"}, inplace=True)
-        
-        # Debug output
-        print(f"{symbol} - Hourly data:\n{hourly_data.head()}\n")
-        
-        # Fetch additional stock information
-        response_eq = nse_eq(symbol)
-        open_price = hourly_data.iloc[0]['o']
-        low_price = hourly_data['l'].min()
-        high_price = hourly_data['h'].max()
-        close_price = hourly_data.iloc[-1]['c']
-        last_update_time = response_eq['preOpenMarket']['lastUpdateTime']
-        center = (open_price + close_price) / 2
-        info_list = [symbol, open_price, close_price, low_price, high_price, center, last_update_time]
 
-        # Determine pattern type
+        response = nse_eq(symbol)
+        name = symbol
+        # open_price = hourly_data.iloc[0]['o']
+        low_price = min(hourly_data['l'])
+        high_price = max(hourly_data['h'])
+        close_price = hourly_data.iloc[6]['c']
+        last_update_time = response['preOpenMarket']['lastUpdateTime']
+        center = (open_price + close_price) / 2
+        info_list = [name, open_price, close_price, low_price, high_price, center, last_update_time]
+
         green_formula1 = (abs(close_price - open_price) * 2.5) <= (high_price - center)
         green_formula2 = (abs(close_price - open_price) * 2.5) <= (center - low_price)
         red_formula1 = (abs(open_price - close_price) * 2.5) <= (high_price - center)
@@ -118,17 +105,15 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
             symbol, info_list = result
             pattern_dict[symbol] = info_list
 
-print(pattern_dict)
-
 message_lines = ["Stock patterns detected:"]
 for symbol, info_list in pattern_dict.items():
     name = info_list[0]
     pattern_type = info_list[-1]
     message_lines.append(f"{name}: {pattern_type} candle")
 
-if pattern_dict:
+# pprint(pattern_dict)
+
+if len(pattern_dict) > 0:
     message = "\n".join(message_lines)
     send_sms(to_phone_number, message)
-    print("SMS sent.")
-else:
-    print("No patterns detected.")
+    print("done")
